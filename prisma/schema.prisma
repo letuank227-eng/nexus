@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  password        String
+  phone           String?  @unique
+  companyCode     String?  // mã số công ty
+  avatar          String?
+  role            String   @default("member") // member, admin, guest
+  companyPosition String   @default("member") // director, manager, leader, member
+  status          String   @default("offline") // online, offline, away
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sentMessages     Message[]         @relation("SentMessages")
+  roomMembers      RoomMember[]
+  assignedTasks    Task[]            @relation("AssignedTasks")
+  createdTasks     Task[]            @relation("CreatedTasks")
+  notifications    Notification[]
+  sessions         Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   @default("channel") // channel, direct, group
+  isPrivate   Boolean  @default(false)
+  companyCode String?  // phòng thuộc công ty nào
+  roomCode    String?  // mã gia nhập nhóm (bắt buộc để vào)
+  avatar      String?  // URL ảnh đại diện nhóm (emoji hoặc data URL)
+  themeColor  String?  // màu chủ đạo của nhóm (hex)
+  fontStyle   String?  // kiểu chữ: default, serif, mono, rounded
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members  RoomMember[]
+  messages Message[]
+  tasks    Task[]
+}
+
+model RoomMember {
+  id       String   @id @default(cuid())
+  userId   String
+  roomId   String
+  role     String   @default("member")   // member, admin
+  position String   @default("member")   // director, manager, leader, member
+  isHidden Boolean  @default(false)      // director stealth: ẩn khỏi danh sách thành viên
+  joinedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  type      String   @default("text") // text, image, file, system
+  fileUrl   String?
+  fileName  String?
+  senderId  String
+  roomId    String
+  taskId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  edited    Boolean  @default(false)
+
+  sender User @relation("SentMessages", fields: [senderId], references: [id])
+  room   Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  task   Task? @relation(fields: [taskId], references: [id])
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  status      String    @default("todo") // todo, doing, done
+  priority    String    @default("medium") // low, medium, high, urgent
+  deadline    DateTime?
+  assignedTo  String?
+  createdBy   String
+  roomId      String?
+  companyCode String?
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  assignee  User?     @relation("AssignedTasks", fields: [assignedTo], references: [id])
+  creator   User      @relation("CreatedTasks", fields: [createdBy], references: [id])
+  room      Room?     @relation(fields: [roomId], references: [id])
+  messages  Message[]
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  content   String
+  type      String   @default("info") // info, warning, task, mention
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
