@@ -30,8 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — ignore real .env but keep .env.example
+.env
+.env.local
+.env.production
 
 # vercel
 .vercel
@@ -41,3 +43,9 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# SQLite dev database — không push lên production
+prisma/*.db
+prisma/*.db-journal
+prisma/*.db-wal
+prisma/*.db-shm
