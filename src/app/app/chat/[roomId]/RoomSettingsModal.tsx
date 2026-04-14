@@ -59,6 +59,9 @@ export default function RoomSettingsModal({ room, currentUserId, onClose, onUpda
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [avatarMode, setAvatarMode] = useState<'emoji' | 'upload'>('emoji')
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [roomCode, setRoomCode] = useState(room.roomCode || '')
+  const [copiedCode, setCopiedCode] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Members management state
@@ -74,7 +77,7 @@ export default function RoomSettingsModal({ room, currentUserId, onClose, onUpda
       const res = await fetch(`/api/rooms/${room.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), description, avatar, themeColor, fontStyle })
+        body: JSON.stringify({ name: name.trim(), description, avatar, themeColor, fontStyle, roomCode: roomCode.trim() || undefined })
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Lỗi cập nhật'); return }
@@ -88,12 +91,35 @@ export default function RoomSettingsModal({ room, currentUserId, onClose, onUpda
     }
   }
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onloadend = () => setAvatar(reader.result as string)
-    reader.readAsDataURL(file)
+    e.target.value = ''
+    setUploadingAvatar(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      if (!res.ok) throw new Error('Upload thất bại')
+      const data = await res.json()
+      setAvatar(data.url)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
+  const generateCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    const code = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+    setRoomCode(code)
+  }
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code)
+    setCopiedCode(true)
+    setTimeout(() => setCopiedCode(false), 2000)
   }
 
   const isAdmin = members.find(m => m.user.id === currentUserId)?.role === 'admin'
@@ -210,18 +236,43 @@ export default function RoomSettingsModal({ room, currentUserId, onClose, onUpda
                 />
               </div>
 
-              {/* Room Code (read-only) */}
+              {/* Room Code — admin can edit */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Mã nhóm</label>
-                <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
-                  <span className="font-mono text-lg font-bold tracking-widest" style={{ color: themeColor }}>{room.roomCode || 'N/A'}</span>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(room.roomCode || '')}
-                    className="ml-auto text-xs text-slate-500 hover:text-white bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg transition-all">
-                    📋 Copy
-                  </button>
-                </div>
-                <p className="text-xs text-slate-600 mt-1">Chia sẻ mã này để mời thành viên vào nhóm</p>
+                {isAdmin ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={roomCode}
+                        onChange={e => setRoomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))}
+                        placeholder="Nhập mã nhóm..."
+                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white font-mono font-bold tracking-widest text-sm placeholder-slate-600 focus:outline-none transition-all uppercase"
+                        style={{ letterSpacing: '0.2em' }}
+                        onFocus={e => { e.target.style.borderColor = themeColor; e.target.style.boxShadow = `0 0 0 3px ${themeColor}30` }}
+                        onBlur={e => { e.target.style.borderColor = ''; e.target.style.boxShadow = '' }}
+                      />
+                      <button onClick={generateCode} title="Tạo mã ngẫu nhiên"
+                        className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-slate-400 hover:text-white transition-all flex items-center justify-center text-lg shrink-0"
+                        style={{ borderColor: `${themeColor}30` }}>
+                        🎲
+                      </button>
+                      <button onClick={() => copyCode(roomCode || '')} title="Copy mã"
+                        className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-slate-400 hover:text-white transition-all flex items-center justify-center text-sm shrink-0">
+                        {copiedCode ? '✅' : '📋'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-600">Chỉ dùng chữ và số, tối đa 12 ký tự. Nhấn 🎲 để tạo ngẫu nhiên.</p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+                    <span className="font-mono text-lg font-bold tracking-widest" style={{ color: themeColor }}>{room.roomCode || 'N/A'}</span>
+                    <button onClick={() => copyCode(room.roomCode || '')}
+                      className="ml-auto text-xs text-slate-500 hover:text-white bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg transition-all">
+                      {copiedCode ? '✅ Đã copy' : '📋 Copy'}
+                    </button>
+                  </div>
+                )}
+                {!isAdmin && <p className="text-xs text-slate-600 mt-1">Chỉ quản lý mới có thể thay đổi mã nhóm</p>}
               </div>
             </>
           )}
@@ -258,17 +309,19 @@ export default function RoomSettingsModal({ room, currentUserId, onClose, onUpda
                 ) : (
                   <div className="flex flex-col items-center gap-4">
                     <div className="w-20 h-20 rounded-2xl overflow-hidden bg-white/5 border-2 border-dashed border-white/20 flex items-center justify-center">
-                      {avatar.startsWith('data:') ? (
+                      {avatar && !AVATAR_EMOJIS.includes(avatar) ? (
                         <img src={avatar} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <span className="text-slate-600 text-sm">Chưa có</span>
                       )}
                     </div>
                     <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
-                    <button onClick={() => fileRef.current?.click()}
-                      className="px-4 py-2 rounded-xl text-sm font-medium text-white transition-all hover:brightness-110"
+                    <button onClick={() => fileRef.current?.click()} disabled={uploadingAvatar}
+                      className="px-4 py-2 rounded-xl text-sm font-medium text-white transition-all hover:brightness-110 disabled:opacity-60 flex items-center gap-2"
                       style={{ background: themeColor }}>
-                      📁 Chọn ảnh
+                      {uploadingAvatar ? (
+                        <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Đang tải...</>
+                      ) : '📁 Chọn ảnh'}
                     </button>
                   </div>
                 )}

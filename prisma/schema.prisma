@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -75,9 +75,10 @@ model RoomMember {
 model Message {
   id        String   @id @default(cuid())
   content   String
-  type      String   @default("text") // text, image, file, system
+  type      String   @default("text") // text, image, video, voice, file, system
   fileUrl   String?
   fileName  String?
+  fileSize  Int?     // bytes
   senderId  String
   roomId    String
   taskId    String?

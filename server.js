@@ -79,7 +79,19 @@ app.prepare().then(() => {
   })
 
   const PORT = process.env.PORT || 3000
-  httpServer.listen(PORT, () => {
-    console.log(`🚀 Nexus server running on http://localhost:${PORT}`)
+  const os = require('os')
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    const nets = os.networkInterfaces()
+    let lanIP = 'localhost'
+    for (const iface of Object.values(nets)) {
+      for (const net of iface) {
+        if (net.family === 'IPv4' && !net.internal) { lanIP = net.address; break }
+      }
+      if (lanIP !== 'localhost') break
+    }
+    console.log(`🚀 Nexus server running on:`)
+    console.log(`   Local:   http://localhost:${PORT}`)
+    console.log(`   Network: http://${lanIP}:${PORT}`)
+    console.log(`\n📱 Mở trên điện thoại: http://${lanIP}:${PORT}`)
   })
 })

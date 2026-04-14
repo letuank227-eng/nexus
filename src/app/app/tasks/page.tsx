@@ -42,6 +42,9 @@ export default function TasksPage() {
   const [showAI, setShowAI] = useState(true)
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const [form, setForm] = useState({ title: '', description: '', priority: 'medium', deadline: '', assignedTo: '' })
+  const [aiSummary, setAiSummary] = useState('')
+  const [aiTaskSuggestion, setAiTaskSuggestion] = useState<{ title: string; description: string; priority: string; deadline: string | null } | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
 
   useEffect(() => {
     fetch('/api/tasks').then(r => r.json()).then(d => setTasks(d.tasks || [])).catch(() => {})
@@ -83,6 +86,50 @@ export default function TasksPage() {
   const deleteTask = async (taskId: string) => {
     await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' })
     setTasks(prev => prev.filter(t => t.id !== taskId))
+  }
+
+  const loadAISummary = async () => {
+    setAiLoading(true)
+    setAiSummary('')
+    setAiTaskSuggestion(null)
+    try {
+      // Summarize based on overdue/urgent tasks as context
+      const overdueList = tasks
+        .filter(t => t.deadline && new Date(t.deadline) < new Date() && t.status !== 'done')
+        .map(t => t.title).join(', ')
+      const context = overdueList
+        ? `Nhóm có các task trễ hạn: ${overdueList}`
+        : `Nhóm có ${tasks.length} task, ${tasks.filter(t=>t.status==='done').length} đã xong`
+
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'chat', messageText: `Tóm tắt tình hình và đưa ra đề xuất cụ thể. ${context}` })
+      })
+      const data = await res.json()
+      setAiSummary(data.answer || data.error || 'Không có phản hồi')
+    } catch { setAiSummary('Lỗi kết nối AI') } finally { setAiLoading(false) }
+  }
+
+  const extractTaskFromAI = async () => {
+    if (!aiSummary) return
+    const res = await fetch('/api/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create-task', messageText: aiSummary })
+    })
+    const data = await res.json()
+    if (data.task) {
+      setAiTaskSuggestion(data.task)
+      setForm(f => ({
+        ...f,
+        title: data.task.title || '',
+        description: data.task.description || '',
+        priority: data.task.priority || 'medium',
+        deadline: data.task.deadline ? data.task.deadline.slice(0, 10) : '',
+      }))
+      setShowModal(true)
+    }
   }
 
   const getColTasks = (status: string) => tasks.filter(t => t.status === status)
@@ -230,29 +277,41 @@ export default function TasksPage() {
           <div className="flex justify-between items-start mb-3">
             <div className="flex items-center gap-2 text-purple-700 font-bold text-[15px]">
               <div className="w-8 h-8 rounded-xl bg-purple-600 flex items-center justify-center text-white">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                </svg>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
               </div>
               AI Insights
             </div>
-            <button onClick={() => setShowAI(false)} className="text-gray-400 hover:text-gray-600 p-1">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/>
-              </svg>
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={loadAISummary} disabled={aiLoading}
+                className="text-[11px] bg-purple-100 text-purple-700 font-semibold px-2.5 py-1 rounded-lg hover:bg-purple-200 transition-colors disabled:opacity-50">
+                {aiLoading ? 'Phân tích...' : '✨ AI phân tích'}
+              </button>
+              <button onClick={() => setShowAI(false)} className="text-gray-400 hover:text-gray-600 p-1">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/></svg>
+              </button>
+            </div>
           </div>
-          <p className="text-sm text-gray-800 mb-3 leading-snug">
-            <span className="font-bold">AI tóm tắt:</span> Cuộc trò chuyện gần đây thảo luận về việc hoàn thiện mục tiêu Q3.{' '}
-            AI đề xuất tạo một công việc từ nội dung này.
-          </p>
-          <button onClick={() => setShowModal(true)}
-            className="w-full py-2.5 bg-purple-100 text-purple-800 font-bold rounded-xl flex justify-center items-center gap-2 hover:bg-purple-200 transition-colors active:scale-[0.98]">
-            <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/>
-            </svg>
-            Chuyển thành Công việc
-          </button>
+          {aiLoading ? (
+            <div className="flex items-center gap-2 text-purple-500 text-sm py-2">
+              <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"/>
+              AI đang phân tích dữ liệu thật...
+            </div>
+          ) : aiSummary ? (
+            <>
+              <p className="text-[12px] text-gray-800 mb-3 leading-relaxed whitespace-pre-line">{aiSummary}</p>
+              <button onClick={extractTaskFromAI}
+                className="w-full py-2.5 bg-purple-100 text-purple-800 font-bold rounded-xl flex justify-center items-center gap-2 hover:bg-purple-200 transition-colors active:scale-[0.98]">
+                <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/>
+                </svg>
+                Tạo Task từ gợi ý AI
+              </button>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500 mb-3 leading-snug">
+              Nhấn <strong>AI phân tích</strong> để AI đọc dữ liệu task thật và đưa ra gợi ý cụ thể!
+            </p>
+          )}
         </div>
       )}
 

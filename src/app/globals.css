@@ -5,54 +5,123 @@
   --accent-purple: #8B5CF6;
 }
 
-* { box-sizing: border-box; }
+/* ── Box sizing & rendering ─────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
 
 body {
   background: #ffffff;
   color: #111827;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
 }
 
-/* Scrollbar */
+/* ── Scrollbar ──────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
-
-/* Hide scrollbar utility */
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Glass */
+/* ── GPU Acceleration ───────────────────────────────── */
+/* Promote animated layers to composite — prevents layout/paint on animate */
+.animate-fade-in,
+.animate-slide-in,
+.animate-slide-up,
+.message-bubble,
+.kanban-card,
+nav {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* ── Glass ──────────────────────────────────────────── */
 .glass {
   background: rgba(255,255,255,0.95);
   backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(0,0,0,0.08);
 }
 
-/* Animations */
-@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes slideIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes slideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(0,122,255,0.3); } 50% { box-shadow: 0 0 0 6px rgba(0,122,255,0); } }
-@keyframes spin { to { transform: rotate(360deg); } }
+/* ── Animations (cubic-bezier for natural motion) ───── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translate3d(-10px, 0, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translate3d(0, 20px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes shimmer {
+  from { background-position: -200% center; }
+  to   { background-position:  200% center; }
+}
 
-.animate-fade-in  { animation: fadeIn 0.2s ease forwards; }
-.animate-slide-in { animation: slideIn 0.2s ease forwards; }
-.animate-slide-up { animation: slideUp 0.25s ease forwards; }
-.animate-spin     { animation: spin 1s linear infinite; }
+/* Use iOS-style spring easing */
+.animate-fade-in  { animation: fadeIn  0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.animate-slide-in { animation: slideIn 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+.animate-slide-up { animation: slideUp 0.22s cubic-bezier(0.34, 1.2, 0.64, 1) both; }
+.animate-spin     { animation: spin 0.9s linear infinite; }
 
-/* Chat bubbles */
-.message-bubble { animation: fadeIn 0.15s ease forwards; }
+/* ── Chat bubbles ─────────────────────────────────────  */
+.message-bubble { animation: fadeIn 0.14s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
 
-/* Typing dots */
-@keyframes typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
-.typing-dot:nth-child(1) { animation: typing 1.2s infinite 0s; }
-.typing-dot:nth-child(2) { animation: typing 1.2s infinite 0.2s; }
-.typing-dot:nth-child(3) { animation: typing 1.2s infinite 0.4s; }
+/* ── Typing dots ──────────────────────────────────────  */
+@keyframes typing {
+  0%, 60%, 100% { transform: translate3d(0, 0, 0); opacity: 0.4; }
+  30%           { transform: translate3d(0, -4px, 0); opacity: 1; }
+}
+.typing-dot { will-change: transform; }
+.typing-dot:nth-child(1) { animation: typing 1.2s ease infinite 0s; }
+.typing-dot:nth-child(2) { animation: typing 1.2s ease infinite 0.2s; }
+.typing-dot:nth-child(3) { animation: typing 1.2s ease infinite 0.4s; }
 
-/* Kanban */
-.kanban-card { transition: all 0.15s ease; }
-.kanban-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
-.kanban-card.dragging { opacity: 0.5; transform: rotate(2deg); }
+/* ── Kanban cards ─────────────────────────────────────  */
+.kanban-card {
+  transition: transform 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              box-shadow 0.12s ease;
+}
+.kanban-card:hover {
+  transform: translate3d(0, -2px, 0);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.09);
+}
+.kanban-card.dragging { opacity: 0.5; transform: rotate(2deg) scale(1.02); }
+
+/* ── Skeleton shimmer ─────────────────────────────────  */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: 8px;
+}
+
+/* ── Active press feedback ──────────────────────────── */
+.active\:scale-95:active { transform: scale(0.95); }
+.active\:scale-\[0\.98\]:active { transform: scale(0.98); }
+
+/* ── Scroll containers (containment) ───────────────── */
+.scroll-container {
+  contain: strict;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}

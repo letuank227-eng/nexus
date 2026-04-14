@@ -1,25 +1,51 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { getInitials, getAvatarColor } from '@/lib/utils'
 
 interface Task { id: string; title: string; status: string; priority: string; deadline?: string; assignee?: { name: string }; creator: { name: string }; createdAt: string }
-interface User { id: string; name: string; email: string; role: string }
-
-const AI_RECS = [
-  { icon: '👥', text: 'Phân phối lại khối lượng công việc cho Sarah do số lượng task quá lớn.' },
-  { icon: '📋', text: 'Ủy thác "Website Redesign Review" cho Alex để cân bằng nhóm.' },
-  { icon: '☕', text: 'Đề xuất nghỉ giải lao cho nhóm để tránh kiệt sức cuối sprint.' },
-]
+interface PerfStat { name: string; total: number; done: number; overdue: number; rate: number }
 
 export default function DashboardPage() {
   const router = useRouter()
   const [tasks, setTasks] = useState<Task[]>([])
-  const [users, setUsers] = useState<User[]>([])
+
+  // AI states
+  const [aiPerf, setAiPerf] = useState('')
+  const [aiPerfStats, setAiPerfStats] = useState<PerfStat[]>([])
+  const [aiDeadline, setAiDeadline] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiDeadlineLoading, setAiDeadlineLoading] = useState(false)
 
   useEffect(() => {
     fetch('/api/tasks').then(r => r.json()).then(d => setTasks(d.tasks || [])).catch(() => {})
-    fetch('/api/users').then(r => r.json()).then(d => setUsers(d.users || [])).catch(() => {})
+  }, [])
+
+  const loadAIPerformance = useCallback(async () => {
+    setAiLoading(true)
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'performance' })
+      })
+      const data = await res.json()
+      setAiPerf(data.evaluation || data.error || 'Không có dữ liệu')
+      setAiPerfStats(data.stats || [])
+    } catch { setAiPerf('Lỗi kết nối AI') } finally { setAiLoading(false) }
+  }, [])
+
+  const loadAIDeadline = useCallback(async () => {
+    setAiDeadlineLoading(true)
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'deadline-analysis' })
+      })
+      const data = await res.json()
+      setAiDeadline(data.analysis || data.error || 'Không có dữ liệu')
+    } catch { setAiDeadline('Lỗi kết nối AI') } finally { setAiDeadlineLoading(false) }
   }, [])
 
   const totalTasks = tasks.length
@@ -31,13 +57,8 @@ export default function DashboardPage() {
   const overdue = tasks.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.status !== 'done')
   const urgent  = tasks.filter(t => t.priority === 'urgent' && t.status !== 'done')
 
-  const userStats = [...users].map(u => ({
-    ...u,
-    assigned: tasks.filter(t => t.assignee?.name === u.name).length,
-    done: tasks.filter(t => t.assignee?.name === u.name && t.status === 'done').length,
-  })).sort((a, b) => b.assigned - a.assigned)
-
   const colTasks = (status: string) => tasks.filter(t => t.status === status).slice(0, 3)
+
 
   return (
     <div className="flex flex-col h-full bg-[#f2f2f7] text-gray-900 overflow-hidden">
@@ -214,55 +235,73 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Team Performance ── */}
-        {userStats.length > 0 && (
-          <div className="px-4 mb-3">
-            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-              <h3 className="text-[13px] font-bold text-gray-900 mb-3">👥 Hiệu suất team</h3>
-              <div className="space-y-3">
-                {userStats.slice(0, 4).map(u => {
-                  const pct = u.assigned > 0 ? Math.round((u.done / u.assigned) * 100) : 0
-                  return (
-                    <div key={u.id} className="flex items-center gap-2">
-                      <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${getAvatarColor(u.name)} flex items-center justify-center text-[10px] font-bold text-white shrink-0`}>
-                        {getInitials(u.name)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between text-[11px] mb-1">
-                          <span className="font-medium text-gray-900 truncate">{u.name}</span>
-                          <span className="text-gray-400 ml-2">{u.done}/{u.assigned}</span>
-                        </div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-gradient-to-r from-purple-500 to-violet-500 rounded-full transition-all"
-                            style={{ width: `${pct}%` }}/>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-semibold text-gray-500 shrink-0">{pct}%</span>
-                    </div>
-                  )
-                })}
-              </div>
+        {/* ── AI Đánh giá hiệu suất ── */}
+        <div className="px-4 mb-3">
+          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[13px] font-bold text-gray-900">🤖 AI Đánh giá hiệu suất</h3>
+              <button onClick={loadAIPerformance} disabled={aiLoading}
+                className="text-[11px] font-semibold text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60 flex items-center gap-1"
+                style={{ background: '#8B5CF6' }}>
+                {aiLoading ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/>Đang phân tích...</> : '✨ Phân tích AI'}
+              </button>
             </div>
+            {/* Bar stats from API */}
+            {aiPerfStats.length > 0 && (
+              <div className="space-y-2.5 mb-3">
+                {aiPerfStats.map(u => (
+                  <div key={u.name} className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${getAvatarColor(u.name)} flex items-center justify-center text-[10px] font-bold text-white shrink-0`}>
+                      {getInitials(u.name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between text-[11px] mb-1">
+                        <span className="font-medium text-gray-900 truncate">{u.name}</span>
+                        <span className="text-gray-400">{u.done}/{u.total} {u.overdue > 0 && <span className="text-red-400">({u.overdue} trễ)</span>}</span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-purple-500 to-violet-500 rounded-full transition-all" style={{ width: `${u.rate}%` }}/>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-bold shrink-0" style={{ color: u.rate >= 75 ? '#10b981' : u.rate >= 40 ? '#f59e0b' : '#ef4444' }}>{u.rate}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {aiPerf ? (
+              <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
+                <p className="text-[12px] text-purple-900 leading-relaxed whitespace-pre-line">{aiPerf}</p>
+              </div>
+            ) : !aiLoading && (
+              <button onClick={loadAIPerformance}
+                className="w-full py-3 bg-gray-50 border border-dashed border-gray-200 rounded-xl text-[12px] text-gray-400 hover:bg-purple-50 hover:border-purple-200 hover:text-purple-600 transition-colors">
+                Nhấn để AI phân tích hiệu suất team ✨
+              </button>
+            )}
           </div>
-        )}
+        </div>
 
-        {/* ── AI Recommendations ── */}
+        {/* ── AI Nhắc Deadline ── */}
         <div className="px-4 mb-6">
           <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-            <h3 className="text-[13px] font-bold text-gray-900 mb-3">🤖 AI Recommendations</h3>
-            <div className="space-y-3">
-              {AI_RECS.map((rec, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center shrink-0 text-lg">
-                    {rec.icon}
-                  </div>
-                  <p className="text-[12px] text-gray-800 flex-1 leading-snug font-medium">{rec.text}</p>
-                  <button className="bg-[#007AFF] text-white text-[11px] font-semibold py-1.5 px-3 rounded-lg shadow-sm shrink-0 hover:bg-blue-600 transition-colors">
-                    Hành động
-                  </button>
-                </div>
-              ))}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[13px] font-bold text-gray-900">⏰ AI Nhắc Deadline</h3>
+              <button onClick={loadAIDeadline} disabled={aiDeadlineLoading}
+                className="text-[11px] font-semibold text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60 flex items-center gap-1"
+                style={{ background: '#007AFF' }}>
+                {aiDeadlineLoading ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/>Đang phân tích...</> : '🔍 Kiểm tra'}
+              </button>
             </div>
+            {aiDeadline ? (
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                <p className="text-[12px] text-blue-900 leading-relaxed whitespace-pre-line">{aiDeadline}</p>
+              </div>
+            ) : !aiDeadlineLoading && (
+              <button onClick={loadAIDeadline}
+                className="w-full py-3 bg-gray-50 border border-dashed border-gray-200 rounded-xl text-[12px] text-gray-400 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-colors">
+                Nhấn để AI kiểm tra trạng thái deadline ⏰
+              </button>
+            )}
           </div>
         </div>
 

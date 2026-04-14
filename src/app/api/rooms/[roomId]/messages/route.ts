@@ -27,10 +27,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { roomId } = await params
-  const { content, type, fileUrl, fileName } = await request.json()
+  const { content, type, fileUrl, fileName, fileSize } = await request.json()
 
   const message = await prisma.message.create({
-    data: { content, type: type || 'text', fileUrl, fileName, senderId: user.id, roomId },
+    data: { content, type: type || 'text', fileUrl, fileName, fileSize, senderId: user.id, roomId },
     include: { sender: { select: { id: true, name: true, avatar: true } } }
   })
 

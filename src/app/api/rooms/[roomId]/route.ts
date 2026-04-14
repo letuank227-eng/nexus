@@ -34,7 +34,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!membership) return NextResponse.json({ error: 'Chỉ quản lý mới có thể chỉnh sửa nhóm' }, { status: 403 })
 
   const body = await request.json()
-  const { name, description, avatar, themeColor, fontStyle } = body
+  const { name, description, avatar, themeColor, fontStyle, roomCode } = body
 
   const updateData: Record<string, string> = {}
   if (name?.trim()) updateData.name = name.trim()
@@ -42,6 +42,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (avatar !== undefined) updateData.avatar = avatar || ''
   if (themeColor !== undefined) updateData.themeColor = themeColor || ''
   if (fontStyle !== undefined) updateData.fontStyle = fontStyle || ''
+  if (roomCode?.trim()) updateData.roomCode = roomCode.trim().toUpperCase().slice(0, 12)
+
 
   if (Object.keys(updateData).length === 0) {
     return NextResponse.json({ error: 'Không có thông tin nào để cập nhật' }, { status: 400 })
