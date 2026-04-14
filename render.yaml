@@ -2,7 +2,7 @@ services:
   - type: web
     name: nexus
     env: node
-    region: singapore  # Gần Việt Nam nhất
+    region: singapore
     plan: free
     buildCommand: npm install && npm run build
     startCommand: npm run start
@@ -10,21 +10,12 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: nexus-db
-          property: connectionString
+        sync: false
       - key: NEXTAUTH_SECRET
-        generateValue: true
+        sync: false
       - key: NEXTAUTH_URL
-        sync: false  # Bạn điền thủ công sau khi có URL
+        sync: false
       - key: GROQ_API_KEY
-        sync: false  # Bạn điền thủ công
+        sync: false
       - key: GEMINI_API_KEY
-        sync: false  # Bạn điền thủ công
-
-databases:
-  - name: nexus-db
-    databaseName: nexus
-    user: nexus_user
-    plan: free
-    region: singapore
+        sync: false
